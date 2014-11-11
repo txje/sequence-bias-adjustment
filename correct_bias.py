@@ -1,9 +1,14 @@
-# compute_bias.py (version 1) tries to use numpy to speed some things up
-# I don't think it worked
-# hence version 2, this one.
+# ----------------------------------------------------------------------
+# v0.1
+#
+# Main method to correct nucleotide-specific bias in NGS
+# For the full pipeline, see seqbias_pipe.sh
+#
+# Jeremy Wang
+# Last modified (finished): 2014-11-11
+# ----------------------------------------------------------------------
 
 import numpy
-#import cProfile
 import string
 import math
 import argparse
@@ -14,8 +19,8 @@ MARGIN = 40
 MAX_AT_POS = 5
 COMPLEMENT = {'A':'T', 'C':'G', 'G':'C', 'T':'A', 'N':'N'}
 CHROMS = ['chr%i' % i for i in xrange(1,23)] + ['chrX', 'chrY']
-BASELINE_DEVIATION_THRESHOLD = 0.10
-TILE_DEVIATION_THRESHOLD = 0.10
+BIAS_THRESHOLD = 5 # fold change allowed in std of allele frequencies, relative to bias at -40
+TILE_COVARIANCE_THRESHOLD = 0.15 # tiles with kmers more correlated than this will be averaged, lower will be compounded
 
 def read_baseline(f):
   data = [line.strip().split(',') for line in open(f, 'r').read().strip().split('\n')]
@@ -50,7 +55,7 @@ def get_seq(read, ref, read_len):
 def compute_weight(group, seq, k, baseline, bias):
   weight = 1
   for combination in group:
-    total = sum([baseline[seq[i:i+k]] / bias[i][seq[i:i+k]] for i in combination])
+    total = sum([baseline[i if len(baseline) > 1 else 0][seq[i:i+k]] / bias[i][seq[i:i+k]] for i in combination])
     weight *= (total / len(combination))
   return weight
 
@@ -63,59 +68,40 @@ def make_kmers(k):
     return ['']
   return ['A' + mer for mer in make_kmers(k-1)] + ['C' + mer for mer in make_kmers(k-1)] + ['G' + mer for mer in make_kmers(k-1)] + ['T' + mer for mer in make_kmers(k-1)]
 
-def compute_groups(baseline, bias):
-  baseline_alleles = {'A':0, 'C':0, 'G':0, 'T':0, 'N':0}
-  k = len(baseline.keys()[0])
-  for seq,val in baseline.iteritems():
-    baseline_alleles[seq[0]] += val
-  #print "Baseline:", baseline_alleles
-  biased_pos = [False for i in xrange(len(bias))]
-  for i in xrange(len(bias) - k + 1):
-    bias_alleles = {'A':0, 'C':0, 'G':0, 'T':0, 'N':0}
-    for seq,val in bias[i].iteritems():
-      bias_alleles[seq[0]] += val
-    #print "Bias[%i]:" % i, bias_alleles
-    biased = False
-    for a in ['A', 'C', 'G', 'T']:
-      if math.fabs((bias_alleles[a] - baseline_alleles[a]) / baseline_alleles[a]) > BASELINE_DEVIATION_THRESHOLD:
-        biased = True
-        break
-    if biased:
-      biased_pos[i] = True
-
-  # tile k-mers over biased_pos list
-  #print '\t'.join(["%i/%s" % (i, 'X' if biased_pos[i] else 'O') for i in xrange(len(biased_pos))])
+def compute_groups(baseline, bias, k, cov_matrix_file):
   tiles = []
-  for i in xrange(len(biased_pos)):
-    if biased_pos[i]:
-      if len(tiles) == 0 or i >= tiles[-1] + k:
-        tiles.append(i)
+  print "Finding biased tiles."
 
-  # average the allele frequency in each k-mer tile to decide which to multiply and which to average
-  tiles_alleles = []
-  for t in xrange(len(tiles)):
-    tile_alleles = [{'A':0, 'C':0, 'G':0, 'T':0, 'N':0} for i in xrange(k)]
+  def allele_variance(bias):
+    k = len(bias.keys()[0])
+    alleles = {'A':[0]*k, 'C':[0]*k, 'G':[0]*k, 'T':[0]*k}
     for i in xrange(k):
-      for seq,val in bias[tiles[t] + i].iteritems():
-        tile_alleles[i][seq[0]] += val
-      for key in tile_alleles[i].keys():
-        tile_alleles[i][key] = tile_alleles[i][key] / k
-    tiles_alleles.append(tile_alleles)
+      for kmer,v in bias.iteritems():
+        alleles[kmer[i]][i] += v
+    return sum([numpy.std(v) for v in alleles.values()]) / len(alleles.keys())
+
+  def kmer_variance(bias):
+    return numpy.std(bias.values())
+
+  baseline_variance = allele_variance(bias[0])
+  print "Threshold (std of allele frequencies):", (baseline_variance * BIAS_THRESHOLD)
+  for i in xrange(0, len(bias) - k + 1, k):
+    print ("Tile %i allele freq std:" % i), allele_variance(bias[i])
+    if allele_variance(bias[i]) > baseline_variance * BIAS_THRESHOLD:
+      tiles.append(i)
+
+  # compute covariance between tiles
+  tile_covariance_matrix = numpy.load(cov_matrix_file)
   tile_same_matrix = [[0 for t in tiles] for u in tiles]
   for i in xrange(len(tiles)):
+    t0 = tiles[i]
     for j in xrange(i+1, len(tiles)):
-      biased = False
-      for l in xrange(k):
-        for a in ['A', 'C', 'G', 'T']:
-          # I think the tile allele may be == 0 for N in some cases
-          if tiles_alleles[j][l][a] > 0 and math.fabs((tiles_alleles[i][l][a] - tiles_alleles[j][l][a]) / tiles_alleles[j][l][a]) > TILE_DEVIATION_THRESHOLD:
-            biased = True
-            break
-        if biased:
-          break
-      if not biased:
+      t1 = tiles[j]
+      print ("tiles %i and %i:" % (t0, t1)), tile_covariance_matrix[t0][t1], "same if >", TILE_COVARIANCE_THRESHOLD
+      if tile_covariance_matrix[t0][t1] > TILE_COVARIANCE_THRESHOLD:
         tile_same_matrix[i][j] = True
         tile_same_matrix[j][i] = True
+
   print "Tile similarity matrix:"
   for row in tile_same_matrix:
     print row
@@ -135,7 +121,7 @@ def compute_groups(baseline, bias):
   print "Correction groups:", groups
   return [groups]
 
-def main(bam_npy_file, fasta_file, baseline_file, bias_file, output_file, adjusted_file, read_limit=None, read_len=20):
+def main(bam_npy_file, fasta_file, baseline_file, bias_file, output_file, adjusted_file, cov_matrix_file, read_limit=None, read_len=20):
   baseline = read_baseline(baseline_file)
   bias = read_bias(bias_file)
   # autodetect k
@@ -167,7 +153,7 @@ def main(bam_npy_file, fasta_file, baseline_file, bias_file, output_file, adjust
       [[MARGIN-6,MARGIN-5]]]
   '''
 
-  groups = compute_groups(baseline, bias) # tile k-mers over regions where bias deviates significantly from baseline
+  groups = compute_groups(baseline, bias, k, cov_matrix_file) # tile k-mers over regions where bias deviates significantly from baseline
   prev_frequencies = None
   prev_read_weights = [] # keep a list of all past weights, so we can undo them
 
@@ -223,7 +209,7 @@ def main(bam_npy_file, fasta_file, baseline_file, bias_file, output_file, adjust
         print "Incomplete (truncated) sequence at read %i" % num_reads
         continue
 
-      weight = compute_weight(group, seq, k, (baseline if prev_frequencies == None else prev_frequencies[0]), bias)
+      weight = compute_weight(group, seq, k, ([baseline] if prev_frequencies == None else prev_frequencies), bias)
       weight *= (prev_read_weights[-1][r][3] if len(prev_read_weights) > 0 else 1)
 
       # if this is the last pass, undo the first weighting
@@ -292,10 +278,9 @@ if __name__ == "__main__":
   parser.add_argument("bias", help="Read allele frequency bias (CSV)")
   parser.add_argument("out", help="Output (CSV) allele frequencies")
   parser.add_argument("adjusted", help="Output read weights (per-read adjustment, binary)")
+  parser.add_argument("covmatrix", help="Tile covariance matrix (NPY)")
   parser.add_argument("--max", help="Maximum reads to process", type=int)
   parser.add_argument("--read_len", help="Read length, default is 20bp", type=int)
   args = parser.parse_args()
 
-  main(args.bam, args.ref, args.baseline, args.bias, args.out, args.adjusted, args.max, args.read_len)
-
-  #cProfile.run("main(args.bam, args.ref, args.baseline, args.bias, args.out, args.adjusted, args.max, args.read_len)")
+  main(args.bam, args.ref, args.baseline, args.bias, args.out, args.adjusted, args.covmatrix, args.max, args.read_len)

@@ -54,7 +54,7 @@ def main(csv_file, out_file, log_base=0, xmin=None, xmax=None, smooth=None, size
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description = "Plot any CSV file, probably...")
   parser.add_argument("csv", help="CSV file")
-  parser.add_argument("output", help="Output image file")
+  parser.add_argument("--out", help="Output image file")
   parser.add_argument("--log", help="Log base for y-axis", type=int)
   parser.add_argument("--xmin", help="Minimum x value to plot", type=int)
   parser.add_argument("--xmax", help="Maximum x value to plot", type=int)
@@ -68,4 +68,9 @@ if __name__ == "__main__":
   else:
     w,h = (800, 600)
 
-  main(args.csv, args.output, args.log if args.log != None else 0, args.xmin, args.xmax, args.smooth, (w,h), args.stacked)
+  if args.out == None:
+    out = args.csv[:args.csv.rindex('.')] + ".png" # replace .csv with .png
+  else:
+    out = args.out
+
+  main(args.csv, out, args.log if args.log != None else 0, args.xmin, args.xmax, args.smooth, (w,h), args.stacked)

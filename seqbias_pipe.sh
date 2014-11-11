@@ -7,25 +7,33 @@ bam=$2
 read_len=$3
 k=$4
 outdir=$5
-bamnpy=$prefix.filtered.bam.npy
+bamfiltered=data/$prefix.filtered.bam
+bamsorted=data/$prefix.filtered.sorted.bam
+bamnpy=$bamfiltered.npy
 ref=/proj/fureylab/genomes/human/hg19_reference/hg19/hg19.fa
 baseline=$outdir/$prefix.read_50_baseline.csv
-# random baseline (suboptimal)
-#baseline=hg19_baseline_alignable_5mer_frequency.csv
 kmer_bias=$outdir/$prefix.${k}mer_frequencies.csv
+tile_cov=$outdir/$prefix.tile_covariance.npy
+corrected_weights=$outdir/$prefix.${k}mer_adjusted.read_weights.npy
 
 set -e
 
+mkdir -p data
 mkdir --parents $outdir
 
 # ---------------------------------------------------------
 # filter, index, and convert BAM to more usable format
 #
-#echo [$(timestamp)] start: BAM filter, index, convert to npy
-#sh filter/filterBlacklistBam.sh $bam $prefix.filtered.bam
-#samtools index $prefix.filtered.bam
-#python filter/bam2npy.py $prefix.filtered.bam
-#echo [$(timestamp)] end: BAM filter, index, convert to npy
+if [ ! -e $bamnpy ]
+then
+  echo [$(timestamp)] start: BAM filter, index, convert to npy
+  sh filter/filterBlacklistBam.sh $bam $bamfiltered
+  samtools sort $bamfiltered data/$prefix.filtered.sorted # will append the .bam
+  mv $bamsorted $bamfiltered
+  samtools index $bamfiltered
+  python bam2npy.py $bamfiltered
+  echo [$(timestamp)] end: BAM filter, index, convert to npy
+fi
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -45,23 +53,43 @@ echo [$(timestamp)] end: Compute $k-mer baseline
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
-# compute and correct for bias using k-mer method
+# compute k-mer bias
 #
 echo [$(timestamp)] start: Compute $k-mer bias
 python compute_bias.py $bamnpy $ref $k $kmer_bias --read_len $read_len
 echo [$(timestamp)] end: Compute $k-mer bias
+# ---------------------------------------------------------
 
+# ---------------------------------------------------------
+# compute tile covariance matrix
+#
+echo [$(timestamp)] start: Compute tile covariance matrix
+python correlate_bias.py $bamnpy $ref $kmer_bias $tile_cov
+echo [$(timestamp)] end: Compute tile covariance matrix
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+# correct using k-mer bias and tile covariance matrix
+#
 echo [$(timestamp)] start: Correct bias
-python correct_bias.py $bamnpy $ref $baseline $kmer_bias $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv $outdir/$prefix.${k}mer_adjusted.read_weights.csv.npy --read_len $read_len
+python correct_bias.py $bamnpy $ref $baseline $kmer_bias $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv $corrected_weights $tile_cov --read_len $read_len
 echo [$(timestamp)] end: Correct bias
+# ---------------------------------------------------------
+
+# ---------------------------------------------------------
+# compute corrected k-mer bias
+#
+echo [$(timestamp)] start: Compute corrected $k-mer bias
+python compute_bias.py $corrected_weights $ref $k $outdir/$prefix.${k}mer_adjusted.${k}mer_frequencies.csv --read_len $read_len
+echo [$(timestamp)] end: Compute corrected $k-mer bias
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
 # various plots, results, diagnostics
 #
 echo [$(timestamp)] start: Plot adjusted nucleotide frequencies
-python plot_csv.py $outdir/$prefix.allele_frequencies.csv $outdir/$prefix.allele_frequencies.png
-python plot_csv.py $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv $outdir/$prefix.${k}mer_adjusted.allele_frequencies.png
+python plot_csv.py $outdir/$prefix.allele_frequencies.csv --out $outdir/$prefix.allele_frequencies.png
+python plot_csv.py $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv --out $outdir/$prefix.${k}mer_adjusted.allele_frequencies.png
 echo [$(timestamp)] end: Plot adjusted nucleotide frequencies
 #
 # elsewhere:
@@ -73,5 +101,6 @@ echo [$(timestamp)] end: Plot adjusted nucleotide frequencies
 
 cd $outdir
 cd ..
+rm -f last
 dir=$(ls -t | head -n 1)
 ln -s $dir last
