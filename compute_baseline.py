@@ -3,10 +3,11 @@
 import numpy
 import argparse
 import pysam
+from string import maketrans
 
 SAMPLE_MARGIN = 25 # on either side
-INVERSE = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
-CHROMS = ['chr%i' % i for i in xrange(1,23)] + ['chrX', 'chrY']
+CHROMS = None
+COMPL = maketrans("ACGT", "TGCA")
 
 def readWig(wig_file):
   fin = open(wig_file, 'r')
@@ -51,19 +52,23 @@ def readWig(wig_file):
 
   return masks
 
-def getRandom(chrom, first, last, cnt, alignability_mask):
-  if numpy.sum(alignability_mask[chrom][first:last]) > 0:
-    nums = numpy.random.choice([i for i in xrange(first, last) if alignability_mask[chrom][i] == 1], cnt, replace=True)
+def getRandom(chrom, first, last, cnt, mask=None):
+  if mask is not None and numpy.sum(mask[chrom][first:last]) > 0:
+    nums = numpy.random.choice([i for i in xrange(first, last) if mask[chrom][i] == 1], cnt, replace=True)
   else:
     nums = numpy.random.randint(first, last, cnt)
-  if not isinstance(nums, list):
+  if not hasattr(nums, '__iter__'):
     nums = [nums]
   return nums
 
-def main(bam_npy_file, fasta_file, k, output_file, exp=1, limit=None, window_max=SAMPLE_MARGIN*2):
+def main(bam_npy_file, fasta_file, chrom_file, k, output_file, exp=1, limit=None, window_max=SAMPLE_MARGIN*2, mask=None):
 
-  print "Reading alignability mask..."
-  alignability_mask = readWig("filter/wgEncodeDukeMapabilityUniqueness20bp.wig")
+  global CHROMS
+  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
+
+  if mask is not None:
+    print "Reading alignability mask..."
+    mask = readWig(mask)
 
   baseline_kmer_counts = {}
 
@@ -97,16 +102,18 @@ def main(bam_npy_file, fasta_file, k, output_file, exp=1, limit=None, window_max
         density_count -= 1
       trailing += 1
 
+    print "read %i (%s), leading %i (%s)" % (b, str(read), leading, str(bam[leading]))
+
     if density_count < 0:
       print density_count, "too low"
 
     first = max(0, read[1] - SAMPLE_MARGIN) # inclusive
     last = min(ref_lens[read[0]] - k, read[1] + SAMPLE_MARGIN + 1 - k) # exclusive
-    for pos in getRandom(read[0], first, last, min(int(density_count ** exp), window_max), alignability_mask): # get (density ** exp) random positions
+    for pos in getRandom(read[0], first, last, min(int(density_count ** exp), window_max), mask): # get (density ** exp) random positions
 
       # get sequence
       if read[2]:
-        seq = ''.join([INVERSE[a] for a in refs[read[0]][pos : pos + k][::-1]])
+        seq = refs[read[0]][pos : pos + k].translate(COMPL)[::-1]
       else:
         seq = refs[read[0]][pos : pos + k]
 
@@ -114,6 +121,8 @@ def main(bam_npy_file, fasta_file, k, output_file, exp=1, limit=None, window_max
       #for i in xrange(len(seq) - k + 1):
       baseline_kmer_counts[seq] = baseline_kmer_counts.get(seq, 0) + 1
 
+    if b == leading + 1: # DON'T KNOW WHY THIS HAPPENS
+      break
     b = leading + 1
 
   fout = open(output_file, 'w')
@@ -127,11 +136,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description = "Compute baseline k-mer frequencies")
   parser.add_argument("bam", help="BAM.npy file")
   parser.add_argument("ref", help="Fasta file")
+  parser.add_argument("chroms", help="Chromosome file")
   parser.add_argument("k", help="k-mer size", type=int)
   parser.add_argument("out", help="Output (csv) file")
   parser.add_argument("--exp", help="Density exponent", type=float, default=1)
   parser.add_argument("--limit", help="Reads to look at, tiled across entire BAM", type=int)
   parser.add_argument("--window_max", help="Maximum # reads to count in a single window", type=int)
+  parser.add_argument("--mask", help="WIG formatted alignability mask")
   args = parser.parse_args()
 
-  main(args.bam, args.ref, args.k, args.out, args.exp, args.limit, args.window_max)
+  main(args.bam, args.ref, args.chroms, args.k, args.out, args.exp, args.limit, args.window_max, args.mask)

@@ -8,12 +8,13 @@ import matplotlib.pyplot as plt
 import numpy
 import math
 import random
+from string import maketrans
 
 MARGIN = 40
 MEMORY_LIMIT = 32000000000 # 32 Gb (on bigmem, hopefully)
 
-COMPLEMENT = {'A':'T', 'T':'A', 'G':'C', 'C':'G', 'N':'N'}
-CHROMS = ['chr%i' % i for i in xrange(1,23)] + ['chrX', 'chrY']
+CHROMS = None
+COMPL = maketrans("ACGT", "TGCA")
 
 def read_bias(f):
   data = [line.strip().split(',') for line in open(f).read().strip().split('\n')]
@@ -24,7 +25,9 @@ def read_bias(f):
       bias[i-1][header[j]] = float(data[i][j])
   return len(header[1]), bias
 
-def main(bam_npy_file, ref_file, bias_file, out_file, read_limit=None, tile=False, plot=False):
+def main(bam_npy_file, ref_file, chrom_file, bias_file, out_file, read_limit=None, tile=False, plot=False, clip=None):
+  global CHROMS
+  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
   k, bias = read_bias(bias_file)
   bam = numpy.load(bam_npy_file)
   fa = pysam.Fastafile(ref_file)
@@ -48,7 +51,7 @@ def main(bam_npy_file, ref_file, bias_file, out_file, read_limit=None, tile=Fals
     seq = refs[read[0]][read[1] - MARGIN : read[1] + MARGIN + 1].upper()
 
     if read[2]:
-      seq = ''.join(COMPLEMENT[a] for a in seq[::-1])
+      seq = seq.translate(COMPL)[::-1]
 
     if 'N' in seq: # kind of heavy-handed
       continue
@@ -59,7 +62,7 @@ def main(bam_npy_file, ref_file, bias_file, out_file, read_limit=None, tile=Fals
     if read_limit != None and i >= read_limit:
       break
 
-    weight = read[3] if len(read) > 3 else 1
+    weight = ((clip if read[3] > clip else (1.0/clip if read[3] < 1.0/clip else read[3])) if clip is not None else read[3]) if len(read) > 3 else 1
 
     if s < read_count and (bam_reads == read_count or random.random() < read_prob):
       for j in xrange(num_samples):
@@ -87,14 +90,21 @@ def main(bam_npy_file, ref_file, bias_file, out_file, read_limit=None, tile=Fals
       correlation_matrix[l][j] = cov
 
   cov_matrix = numpy.array(correlation_matrix)
-
   numpy.save(out_file, cov_matrix)
+
+  print cov_matrix.shape
+  print range(0, cov_matrix.shape[0], 5)
+  print range(0, cov_matrix.shape[1], 5)
+  cov_matrix = cov_matrix[range(0,cov_matrix.shape[0],5)][:,range(0,cov_matrix.shape[1],5)] # fancy indexing to get nonoverlapping tiles
+  print cov_matrix.shape
 
   if plot:
     plt.imshow(cov_matrix, interpolation="none")
     plt.jet()
     cb = plt.colorbar()
     cb.set_label("covariance")
+    plt.xticks(range(cov_matrix.shape[1]), range(-8,8))
+    plt.yticks(range(cov_matrix.shape[0]), range(-8,8))
     plt.savefig("%s.png" % (out_file[:out_file.rindex('.')]))
 
 
@@ -102,11 +112,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description = "Compute bias correlation across read-relative positions")
   parser.add_argument("bam", help="BAM.npy file")
   parser.add_argument("ref", help="Fasta file")
+  parser.add_argument("chroms", help="Chromosome file")
   parser.add_argument("bias", help="Bias (CSV) file")
   parser.add_argument("out", help="Output (npy) file")
   parser.add_argument("--limit", help="Maximum reads to process", type=int)
   parser.add_argument("--tile", help="Tile based on k-mer size?", action="store_true")
   parser.add_argument("--plot", help="Plot covariance matrix?", action="store_true")
+  parser.add_argument("--clip", help="Clip weights", type=int)
   args = parser.parse_args()
 
-  main(args.bam, args.ref, args.bias, args.out, args.limit, args.tile, args.plot)
+  main(args.bam, args.ref, args.chroms, args.bias, args.out, args.limit, args.tile, args.plot, args.clip)

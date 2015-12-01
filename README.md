@@ -1,5 +1,5 @@
-Nucleotide-specific bias correction
------------------------------------
+Correcting nucleotide-specific bias in high-throughput sequencing data
+----------------------------------------------------------------------
 
 Reweight high-throughput sequencing reads to account for nucleotide-specific bias
 from any source, including assay and sequencing biases.
@@ -15,16 +15,19 @@ Overview:
 
 How to use it:
 
-    sh seqbias_pipe.sh [prefix] [bam] [read length] [k] [output]
+    sh seqbias_pipe.sh &lt;ref> &lt;chroms> &lt;prefix> &lt;bam> &lt;k> &lt;outdir> [--resume &lt;step>]
+      ref           reference genome FASTA file
+      chroms        list of chromosomes (one per line) to correct
       prefix        will be appended to all working and result files
       bam           should be aligned and sorted
-      read length   reads in BAM file should be the same length
       k             tile size to correct (5 is recommended most of the time)
-      output        directory to put all output files
-    
-    ex. sh seqbias_pipe.sh GM12878Rep1 GM12878Rep1.bam 20 5 results/GM12878Rep1.5mer
+      outdir        directory to put all output files
 
 
-Jeremy Wang (Furey Lab)
+Jeremy Wang
+
+Department of Genetics
+
 University of North Carolina at Chapel Hill
-November, 2014
+
+December, 2015

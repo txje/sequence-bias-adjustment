@@ -1,19 +1,24 @@
 import argparse
 import pysam
 import numpy
+from string import maketrans
 
 MAX_AT_POS = None #5
 #MAX_AT_POS = 160
 #print "------------- MAX_AT_POS: 160 (usually 5..) ---------------"
-INVERSE = {'A':'T', 'T':'A', 'C':'G', 'G':'C', 'N':'N'}
-CHROMS = ['chr%i' % i for i in xrange(1,23)] + ['chrX', 'chrY']
+CHROMS = None
+COMPL = maketrans("ACGT", "TGCA")
 
 def make_kmers(k):
   if k == 0:
     return ['']
   return ['A' + mer for mer in make_kmers(k-1)] + ['C' + mer for mer in make_kmers(k-1)] + ['G' + mer for mer in make_kmers(k-1)] + ['T' + mer for mer in make_kmers(k-1)]
 
-def main(bam_npy_file, fasta_file, k, output_file, read_limit, clip, read_len, margin):
+def main(bam_npy_file, fasta_file, chrom_file, k, output_file, read_limit, clip, read_len, margin):
+
+  global CHROMS
+  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
+
   if not bam_npy_file[-4:] == ".npy":
     print "BAM file must be in .bam.npy format."
     return
@@ -52,7 +57,7 @@ def main(bam_npy_file, fasta_file, k, output_file, read_limit, clip, read_len, m
     # read sequence (may be reversed)
     if read[2]:
       # on reverse strand, read starts at read.pos + read_len - 1
-      seq = ''.join([INVERSE[a] for a in refs[read[0]][read[1] - margin + read_len - 1:read[1] + margin + read_len][::-1]])
+      seq = refs[read[0]][read[1] - margin + read_len - 1:read[1] + margin + read_len].translate(COMPL)[::-1]
     else:
       seq = refs[read[0]][read[1] - margin:read[1] + margin + 1]
     # count k-mers
@@ -99,6 +104,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description = "Compute k-mer frequency bias")
   parser.add_argument("bam", help="BAM.npy file")
   parser.add_argument("ref", help="Fasta file")
+  parser.add_argument("chroms", help="Chromosome file")
   parser.add_argument("k", help="k-mer size", type=int)
   parser.add_argument("out", help="Output (csv) file")
   parser.add_argument("--max", help="Maximum reads to process", type=int)
@@ -107,4 +113,4 @@ if __name__ == "__main__":
   parser.add_argument("--margin", help="Width around read start to capture", type=int, default=40)
   args = parser.parse_args()
 
-  main(args.bam, args.ref, args.k, args.out, args.max if args.max > 0 else None, args.clip if args.clip > 0 else None, args.read_len, args.margin)
+  main(args.bam, args.ref, args.chroms, args.k, args.out, args.max if args.max > 0 else None, args.clip if args.clip > 0 else None, args.read_len, args.margin)
