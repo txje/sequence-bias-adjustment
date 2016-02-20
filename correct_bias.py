@@ -115,8 +115,15 @@ def get_weight(chr, pos, strand, k, length, ref, groups, bias, baseline):
   else:
     seq = ref[chr][pos - MARGIN:pos + MARGIN + 1]
 
-  # I guess, don't reweight reads with Ns at all
-  if 'N' in seq:
+  # just don't reweight reads with N (or R, or M) at all
+  composition = {'A':0, 'C':0, 'G':0, 'T':0}
+  bad = False
+  for a in seq:
+    if not composition.has_key(a):
+      bad = True
+      break
+    composition[a] += 1
+  if bad:
     return seq, -1
 
   if len(seq) < MARGIN * 2 + 1:
@@ -133,7 +140,7 @@ def get_weight(chr, pos, strand, k, length, ref, groups, bias, baseline):
 
 def main(bam_npy_file, fasta_file, chrom_file, baseline_file, bias_file, output_file, adjusted_file, cov_matrix_file, read_limit=None, read_len=20):
   global CHROMS
-  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
+  CHROMS = [c.split()[0] for c in open(chrom_file).read().strip().split('\n')]
   baseline = read_baseline(baseline_file)
   bias = read_bias(bias_file)
   # autodetect k

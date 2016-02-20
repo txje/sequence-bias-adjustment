@@ -56,7 +56,11 @@ def getRandom(chrom, first, last, cnt, mask=None):
   if mask is not None and numpy.sum(mask[chrom][first:last]) > 0:
     nums = numpy.random.choice([i for i in xrange(first, last) if mask[chrom][i] == 1], cnt, replace=True)
   else:
-    nums = numpy.random.randint(first, last, cnt)
+    # for reads very near the end, this range can be 0, skip it
+    if last <= first:
+      nums = []
+    else:
+      nums = numpy.random.randint(first, last, cnt)
   if not hasattr(nums, '__iter__'):
     nums = [nums]
   return nums
@@ -64,7 +68,7 @@ def getRandom(chrom, first, last, cnt, mask=None):
 def main(bam_npy_file, fasta_file, chrom_file, k, output_file, exp=1, limit=None, window_max=SAMPLE_MARGIN*2, mask=None):
 
   global CHROMS
-  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
+  CHROMS = [c.split()[0] for c in open(chrom_file).read().strip().split('\n')]
 
   if mask is not None:
     print "Reading alignability mask..."
@@ -102,7 +106,7 @@ def main(bam_npy_file, fasta_file, chrom_file, k, output_file, exp=1, limit=None
         density_count -= 1
       trailing += 1
 
-    print "read %i (%s), leading %i (%s)" % (b, str(read), leading, str(bam[leading]))
+    #print "read %i (%s), leading %i (%s)" % (b, str(read), leading, str(bam[leading]))
 
     if density_count < 0:
       print density_count, "too low"

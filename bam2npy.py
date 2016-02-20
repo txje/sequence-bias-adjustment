@@ -12,7 +12,9 @@ def bam_count(bam, ref):
 # usage: python bam2npy.py <bam>
 
 bam = pysam.AlignmentFile(sys.argv[1], 'rb')
-refs = [(c[:c.index(' ')] if ' ' in c else c) for c in open(sys.argv[2]).read().strip().split('\n')]
+refs = [c.split()[0] for c in open(sys.argv[2]).read().strip().split('\n')]
+print "Looking for", refs
+print "in", bam.references
 CHROMS = [c for c in refs if c in bam.references]
 
 tagged = None

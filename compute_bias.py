@@ -17,7 +17,7 @@ def make_kmers(k):
 def main(bam_npy_file, fasta_file, chrom_file, k, output_file, read_limit, clip, read_len, margin):
 
   global CHROMS
-  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
+  CHROMS = [c.split()[0] for c in open(chrom_file).read().strip().split('\n')]
 
   if not bam_npy_file[-4:] == ".npy":
     print "BAM file must be in .bam.npy format."
@@ -78,12 +78,12 @@ def main(bam_npy_file, fasta_file, chrom_file, k, output_file, read_limit, clip,
     if k > 1:
       for i in xrange(min(margin * 2 - k + 2, len(seq)-k+1)):
         kmer = seq[i:i+k]
-        if 'N' in kmer:
+        if 'N' in kmer or not kmer_counts[i].has_key(kmer):
           continue
         kmer_counts[i][kmer] += weight
     else:
       for i in xrange(min(margin * 2 + 1, len(seq))):
-        if seq[i] == 'N':
+        if seq[i] == 'N' or not kmer_counts[i].has_key(seq[i]):
           continue
         kmer_counts[i][seq[i]] += weight
 

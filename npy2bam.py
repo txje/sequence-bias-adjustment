@@ -8,7 +8,7 @@ CHROMS = None
 
 def main(chromfile, npyfile, bamfile, outbam, tag, mult, noy, chrom):
   global CHROMS
-  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chromfile).read().strip().split('\n')]
+  CHROMS = [c.split()[0] for c in open(chromfile).read().strip().split('\n')]
   if noy and "chrY" in CHROMS:
     CHROMS.remove("chrY")
 
@@ -62,12 +62,10 @@ def main(chromfile, npyfile, bamfile, outbam, tag, mult, noy, chrom):
         break
       read.reference_id = c # SET THE REFID TO THE CURRENT CHROM ID
       while r < len(reads) and reads[r][0] == c and (reads[r][1] < read.reference_start or (reads[r][2] == 0 and read.flag & 16 > 0)):
-        #print "skipping read %i:%i:%i because pos is %i" % (reads[r][0], reads[r][1], reads[r][2], read.reference_start)
         r += 1
       if r < len(reads) and reads[r][0] == c and reads[r][1] == read.reference_start and (reads[r][2] * 16) == (read.flag & 16):
         name = read.query_name
         if tag:
-          print "setting read %i tag XW to %.4f" % (r, reads[r][3])
           #read.tags.append(('XW', reads[r][3]))
           read.set_tag('XW', reads[r][3], 'f')
           bam.write(read)

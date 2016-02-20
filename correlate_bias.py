@@ -14,7 +14,7 @@ MARGIN = 40
 MEMORY_LIMIT = 32000000000 # 32 Gb (on bigmem, hopefully)
 
 CHROMS = None
-COMPL = maketrans("ACGT", "TGCA")
+COMPL = maketrans("ACGTacgt", "TGCATGCA")
 
 def read_bias(f):
   data = [line.strip().split(',') for line in open(f).read().strip().split('\n')]
@@ -27,7 +27,7 @@ def read_bias(f):
 
 def main(bam_npy_file, ref_file, chrom_file, bias_file, out_file, read_limit=None, tile=False, plot=False, clip=None):
   global CHROMS
-  CHROMS = [(c[:c.index(' ')] if ' ' in c else c) for c in open(chrom_file).read().strip().split('\n')]
+  CHROMS = [c.split()[0] for c in open(chrom_file).read().strip().split('\n')]
   k, bias = read_bias(bias_file)
   bam = numpy.load(bam_npy_file)
   fa = pysam.Fastafile(ref_file)
@@ -53,7 +53,15 @@ def main(bam_npy_file, ref_file, chrom_file, bias_file, out_file, read_limit=Non
     if read[2]:
       seq = seq.translate(COMPL)[::-1]
 
-    if 'N' in seq: # kind of heavy-handed
+    composition = {'A':0, 'C':0, 'G':0, 'T':0}
+    bad = False
+    for a in seq:
+      # These can be Ns or weird sequence like Kirk's (with Rs and Ms)
+      if not composition.has_key(a):
+        bad = True
+        break
+      composition[a] += 1
+    if bad:
       continue
 
     i += 1
@@ -66,7 +74,8 @@ def main(bam_npy_file, ref_file, chrom_file, bias_file, out_file, read_limit=Non
 
     if s < read_count and (bam_reads == read_count or random.random() < read_prob):
       for j in xrange(num_samples):
-        a = bias[j*tile_size][seq[j*tile_size:j*tile_size+k]]
+        kmer = seq[j*tile_size:j*tile_size+k]
+        a = bias[j*tile_size][kmer]
         stacks[j, s] = a * weight
       s += 1
 
