@@ -17,6 +17,7 @@ How to use it:
 
     sh seqbias_pipe.sh &lt;ref> &lt;chroms> &lt;prefix> &lt;bam> &lt;k> &lt;outdir> [--resume &lt;step>]
       ref           reference genome FASTA file
+      path          prefix of data files
       chroms        list of chromosomes (one per line) to correct
       prefix        will be appended to all working and result files
       bam           should be aligned and sorted
@@ -24,10 +25,8 @@ How to use it:
       outdir        directory to put all output files
 
 
-Jeremy Wang
+Jeremy Wang, Ph.D.
 
 Department of Genetics
 
 University of North Carolina at Chapel Hill
-
-December, 2015
