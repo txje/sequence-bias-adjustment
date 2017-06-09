@@ -15,7 +15,7 @@ Overview:
 
 How to use it:
 
-    sh seqbias_pipe.sh &lt;ref> &lt;chroms> &lt;prefix> &lt;bam> &lt;k> &lt;outdir> [--resume &lt;step>]
+    sh seqbias_pipe.sh <ref> <chroms> <prefix> <bam> <k> <outdir> [--resume <step>]
       ref           reference genome FASTA file
       path          prefix of data files
       chroms        list of chromosomes (one per line) to correct
@@ -26,7 +26,7 @@ How to use it:
 
 
 Jeremy Wang, Ph.D.
-
 Department of Genetics
-
 University of North Carolina at Chapel Hill
+
+MIT License (see LICENSE.txt)
