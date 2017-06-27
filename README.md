@@ -16,14 +16,13 @@ Installation:
   cd sequence-bias-adjustment
 
 Usage:
-    sh seqbias_pipe.sh <ref> <chroms> <path> <prefix> <bam> <k> <outdir> [--resume <step>]
+    sh seqbias_pipe.sh <ref> <chroms> <bam> <k> <outdir> <prefix> [--resume <step>]
       ref           reference genome FASTA file
       chroms        list of chromosomes (one per line) to correct
-      path          prefix of data files
-      prefix        will be appended to all working and result files
       bam           should be aligned and blacklist filtered (if needed)
       k             tile size to correct (5 is recommended most of the time)
       outdir        directory to put all output files
+      prefix        prepended to all intermediate and output files
 
 Example usage:
 
@@ -40,7 +39,7 @@ To run bias correction on an example ENCODE DNase-seq data set:
   chmod 700 twoBitToFa
   ./twoBitToFa hg19.2bit hg19.fa
   cd ..
-  sh seqbias_pipe.sh example_data/hg19.fa example_data/hg19.chrom.sizes example_data gm12878.dnase example_data/wgEncodeOpenChromDnaseGm12878AlnRep1.bam 5 example_results
+  sh seqbias_pipe.sh example_data/hg19.fa example_data/hg19.chrom.sizes example_data/wgEncodeOpenChromDnaseGm12878AlnRep1.bam 5 example_results gm12878.dnase
 
 
 Jeremy Wang, Ph.D.

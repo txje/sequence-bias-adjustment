@@ -4,16 +4,15 @@ timestamp() {
 
 ref=$1
 chroms=$2
-path=$3
-prefix=$4
-bam=$5
-k=$6
-outdir=$7
-opt=$8
+bam=$3
+k=$4
+outdir=$5
+prefix=$6
+opt=$7
 resume=0
 if [[ $opt == "--resume" ]]
 then
-  step=$9
+  step=$8
   case $step in
     baseline)
       resume=1;;
@@ -32,21 +31,17 @@ then
   esac
   echo "Resuming at step $resume ($step)"
 fi
-bamfiltered=data/$path.filtered.bam
-bamsorted=data/$path.filtered.sorted.bam
+bamfiltered=$outdir/$prefix.filtered.bam
+bamsorted=$outdir/$prefix.filtered.sorted.bam
 bamnpy=$bamfiltered.npy
 
 baseline=$outdir/$prefix.read_50_baseline.csv
 kmer_bias=$outdir/$prefix.${k}mer_frequencies.csv
 tile_cov=$outdir/$prefix.tile_covariance.npy
 corrected_weights=$outdir/$prefix.${k}mer_adjusted.read_weights.npy
-src=pipeline
-
-alignability_mask=$src/filter/wgEncodeDukeMapabilityUniqueness20bp.wig
 
 set -e
 
-mkdir -p data
 mkdir -p $outdir
 
 # ---------------------------------------------------------
@@ -62,14 +57,14 @@ then
   if [ ! -e $bamfiltered ]
   then
     # -- this filtering is specific to our study; you may wish to do your own filtering --
-    #sh $src/filter/filterBlacklistBam.sh $bam $bamfiltered
+    #sh filter/filterBlacklistBam.sh $bam $bamfiltered
     bamfiltered=$bam
 
     samtools sort $bamfiltered -o $bamsorted # will append the .bam
     mv $bamsorted $bamfiltered
     samtools index $bamfiltered
   fi
-  python $src/bam2npy.py $bamfiltered $chroms
+  python bam2npy.py $bamfiltered $chroms
   echo [$(timestamp)] end: BAM filter, index, convert to npy
 
 else
@@ -93,7 +88,7 @@ echo "$prefix read length: $read_len" >> debug.out
 if [ $resume -lt 1 ]
 then
   echo [$(timestamp)] start: Compute nucleotide bias
-  python $src/compute_bias.py $bamnpy $ref $chroms 1 $outdir/$prefix.allele_frequencies.csv --read_len $read_len
+  python compute_bias.py $bamnpy $ref $chroms 1 $outdir/$prefix.allele_frequencies.csv --read_len $read_len
   echo [$(timestamp)] end: Compute nucleotide bias
 fi
 # ---------------------------------------------------------
@@ -105,7 +100,7 @@ if [ $resume -lt 2 ]
 then
   echo [$(timestamp)] start: Compute $k-mer baseline
   echo step baseline
-  python $src/compute_baseline.py $bamnpy $ref $chroms $k $baseline
+  python compute_baseline.py $bamnpy $ref $chroms $k $baseline
   # --mask $alignability_mask
   echo [$(timestamp)] end: Compute $k-mer baseline
 fi
@@ -118,7 +113,7 @@ if [ $resume -lt 3 ]
 then
   echo [$(timestamp)] start: Compute $k-mer bias
   echo step bias
-  python $src/compute_bias.py $bamnpy $ref $chroms $k $kmer_bias --read_len $read_len
+  python compute_bias.py $bamnpy $ref $chroms $k $kmer_bias --read_len $read_len
   echo [$(timestamp)] end: Compute $k-mer bias
 fi
 # ---------------------------------------------------------
@@ -130,7 +125,7 @@ if [ $resume -lt 4 ]
 then
   echo [$(timestamp)] start: Compute tile covariance matrix
   echo step covariance
-  python $src/correlate_bias.py $bamnpy $ref $chroms $kmer_bias $tile_cov --plot
+  python correlate_bias.py $bamnpy $ref $chroms $kmer_bias $tile_cov --plot
   echo [$(timestamp)] end: Compute tile covariance matrix
 fi
 # ---------------------------------------------------------
@@ -142,7 +137,7 @@ if [ $resume -lt 5 ]
 then
   echo [$(timestamp)] start: Correct bias
   echo step correct
-  python $src/correct_bias.py $bamnpy $ref $chroms $baseline $kmer_bias $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv $corrected_weights $tile_cov --read_len $read_len
+  python correct_bias.py $bamnpy $ref $chroms $baseline $kmer_bias $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv $corrected_weights $tile_cov --read_len $read_len
   echo [$(timestamp)] end: Correct bias
 fi
 # ---------------------------------------------------------
@@ -154,7 +149,7 @@ then
 #
   echo [$(timestamp)] start: Compute corrected nucleotide bias
   echo step rebias
-  python $src/compute_bias.py $corrected_weights $ref $chroms 1 $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv --read_len $read_len
+  python compute_bias.py $corrected_weights $ref $chroms 1 $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv --read_len $read_len
   echo [$(timestamp)] end: Compute corrected nucleotide bias
 # ---------------------------------------------------------
 
@@ -162,7 +157,7 @@ then
 # compute corrected k-mer bias
 #
   echo [$(timestamp)] start: Compute corrected $k-mer bias
-  python $src/compute_bias.py $corrected_weights $ref $chroms $k $outdir/$prefix.${k}mer_adjusted.${k}mer_frequencies.csv --read_len $read_len
+  python compute_bias.py $corrected_weights $ref $chroms $k $outdir/$prefix.${k}mer_adjusted.${k}mer_frequencies.csv --read_len $read_len
   echo [$(timestamp)] end: Compute corrected $k-mer bias
 # ---------------------------------------------------------
 
@@ -170,8 +165,8 @@ then
 # various plots, results, diagnostics
 #
   echo [$(timestamp)] start: Plot adjusted nucleotide frequencies
-  python $src/plot_csv.py $outdir/$prefix.allele_frequencies.csv --out $outdir/$prefix.allele_frequencies.png
-  python $src/plot_csv.py $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv --out $outdir/$prefix.${k}mer_adjusted.allele_frequencies.png
+  python plot_csv.py $outdir/$prefix.allele_frequencies.csv --out $outdir/$prefix.allele_frequencies.png
+  python plot_csv.py $outdir/$prefix.${k}mer_adjusted.allele_frequencies.csv --out $outdir/$prefix.${k}mer_adjusted.allele_frequencies.png
   echo [$(timestamp)] end: Plot adjusted nucleotide frequencies
 #
 # elsewhere:
@@ -189,7 +184,7 @@ if [ $resume -lt 7 ]
 then
   echo [$(timestamp)] start: Writing BAM output
   echo step bam
-  python $src/npy2bam.py $chroms $outdir/$prefix.${k}mer_adjusted.read_weights.npy $bamfiltered $outdir/$prefix.adjusted.bam --noy --tag
+  python npy2bam.py $chroms $outdir/$prefix.${k}mer_adjusted.read_weights.npy $bamfiltered $outdir/$prefix.adjusted.bam --noy --tag
   echo [$(timestamp)] end: Writing BAM output
 
   echo [$(timestamp)] start: Indexing BAM
@@ -206,7 +201,7 @@ fi
 #  echo [$(timestamp)] start: Writing wig/bw output
 #  echo step bigwig
 #  # right now, this is fixed to hg19
-#  sh $src/pileup_wig/wigify.sh $outdir/$prefix.adjusted.bam $outdir/$prefix.adjusted $chroms
+#  sh pileup_wig/wigify.sh $outdir/$prefix.adjusted.bam $outdir/$prefix.adjusted $chroms
 #  echo [$(timestamp)] end: Writing wig/bw output
 #fi
 # ---------------------------------------------------------
