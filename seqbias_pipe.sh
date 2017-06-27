@@ -47,7 +47,7 @@ alignability_mask=$src/filter/wgEncodeDukeMapabilityUniqueness20bp.wig
 set -e
 
 mkdir -p data
-mkdir --parents $outdir
+mkdir -p $outdir
 
 # ---------------------------------------------------------
 # filter, index, and convert BAM to more usable format
@@ -59,10 +59,12 @@ then
 
   read_len=$(samtools view $bam | head -n 1 | awk '{print $10}' - | wc | awk '{print $3}' -)
 
-  # -- this filtering is specific to our study; you may wish to do your own filtering --
   if [ ! -e $bamfiltered ]
   then
-    sh $src/filter/filterBlacklistBam.sh $bam $bamfiltered
+    # -- this filtering is specific to our study; you may wish to do your own filtering --
+    #sh $src/filter/filterBlacklistBam.sh $bam $bamfiltered
+    bamfiltered=$bam
+
     samtools sort $bamfiltered -o $bamsorted # will append the .bam
     mv $bamsorted $bamfiltered
     samtools index $bamfiltered

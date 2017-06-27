@@ -4,25 +4,43 @@ Correcting nucleotide-specific bias in high-throughput sequencing data
 Reweight high-throughput sequencing reads to account for nucleotide-specific bias
 from any source, including assay and sequencing biases.
 
+Requirements:
+* samtools (in PATH)
+* Python (2.7)
+  * numpy
+  * pysam
+  * matplotlib (pyplot)
 
-Overview:
+Installation:
+  git clone http://github.com/txje/sequence-bias-adjustment
+  cd sequence-bias-adjustment
 
-1.  Compute baseline
-2.  Compute bias
-3.  Correct bias
-4.  Plotting and diagnostics
-
-
-How to use it:
-
-    sh seqbias_pipe.sh <ref> <chroms> <prefix> <bam> <k> <outdir> [--resume <step>]
+Usage:
+    sh seqbias_pipe.sh <ref> <chroms> <path> <prefix> <bam> <k> <outdir> [--resume <step>]
       ref           reference genome FASTA file
-      path          prefix of data files
       chroms        list of chromosomes (one per line) to correct
+      path          prefix of data files
       prefix        will be appended to all working and result files
-      bam           should be aligned and sorted
+      bam           should be aligned and blacklist filtered (if needed)
       k             tile size to correct (5 is recommended most of the time)
       outdir        directory to put all output files
+
+Example usage:
+
+To run bias correction on an example ENCODE DNase-seq data set:
+
+  git clone http://github.com/txje/sequence-bias-adjustment
+  cd sequence-bias-adjustment
+  mkdir example_data
+  cd example_data
+  wget http://hgdownload.soe.ucsc.edu/goldenPath/hg19/encodeDCC/wgEncodeOpenChromDnase/wgEncodeOpenChromDnaseGm12878AlnRep1.bam
+  wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.chrom.sizes
+  wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.2bit
+  wget http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/twoBitToFa
+  chmod 700 twoBitToFa
+  ./twoBitToFa hg19.2bit hg19.fa
+  cd ..
+  sh seqbias_pipe.sh example_data/hg19.fa example_data/hg19.chrom.sizes example_data gm12878.dnase example_data/wgEncodeOpenChromDnaseGm12878AlnRep1.bam 5 example_results
 
 
 Jeremy Wang, Ph.D.
