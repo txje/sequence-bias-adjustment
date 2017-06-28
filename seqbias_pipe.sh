@@ -31,9 +31,7 @@ then
   esac
   echo "Resuming at step $resume ($step)"
 fi
-bamfiltered=$outdir/$prefix.filtered.bam
-bamsorted=$outdir/$prefix.filtered.sorted.bam
-bamnpy=$bamfiltered.npy
+bamnpy=$outdir/$prefix.bam.npy
 
 baseline=$outdir/$prefix.read_50_baseline.csv
 kmer_bias=$outdir/$prefix.${k}mer_frequencies.csv
@@ -54,21 +52,11 @@ then
 
   read_len=$(samtools view $bam | head -n 1 | awk '{print $10}' - | wc | awk '{print $3}' -)
 
-  if [ ! -e $bamfiltered ]
-  then
-    # -- this filtering is specific to our study; you may wish to do your own filtering --
-    #sh filter/filterBlacklistBam.sh $bam $bamfiltered
-    bamfiltered=$bam
-
-    samtools sort $bamfiltered -o $bamsorted # will append the .bam
-    mv $bamsorted $bamfiltered
-    samtools index $bamfiltered
-  fi
-  python bam2npy.py $bamfiltered $chroms
+  python bam2npy.py $bam $chroms $bamnpy
   echo [$(timestamp)] end: BAM filter, index, convert to npy
 
 else
-  read_len=$(samtools view $bamfiltered | head -n 1 | awk '{print $10}' - | wc | awk '{print $3}' -)
+  read_len=$(samtools view $bam | head -n 1 | awk '{print $10}' - | wc | awk '{print $3}' -)
 fi
 
 # get read length
@@ -184,7 +172,7 @@ if [ $resume -lt 7 ]
 then
   echo [$(timestamp)] start: Writing BAM output
   echo step bam
-  python npy2bam.py $chroms $outdir/$prefix.${k}mer_adjusted.read_weights.npy $bamfiltered $outdir/$prefix.adjusted.bam --noy --tag
+  python npy2bam.py $chroms $outdir/$prefix.${k}mer_adjusted.read_weights.npy $bam $outdir/$prefix.adjusted.bam --noy --tag
   echo [$(timestamp)] end: Writing BAM output
 
   echo [$(timestamp)] start: Indexing BAM

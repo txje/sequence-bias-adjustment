@@ -54,4 +54,4 @@ for chr in CHROMS:
 assert i == numreads, "Number of written reads doesn't match expected"
 
 print "%i reads marked as unmapped, but given valid reference_id and position - we did NOT use them." % flagged_unmapped
-numpy.save(sys.argv[1]+".npy", ary)
+numpy.save(sys.argv[3], ary)
