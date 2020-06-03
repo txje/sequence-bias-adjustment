@@ -30,7 +30,7 @@ def main(csv_file, out_file, log_base=0, xmin=None, xmax=None, smooth=None, size
       for d in xrange(1, len(data)):
         data[d][i] += data[d-1][i]
 
-  fig = figure(figsize=(s/100.0 for s in size), dpi=100)
+  fig = figure(figsize=[s/100.0 for s in size], dpi=100)
   axis = fig.add_subplot(111)
   ticks = range(len(labels))
 
