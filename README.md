@@ -21,7 +21,7 @@ Usage:
     sh seqbias_pipe.sh <ref> <chroms> <bam> <k> <outdir> <prefix> [--resume <step>]
       ref           reference genome FASTA file
       chroms        list of chromosomes (one per line) to correct
-      bam           should be aligned and blacklist filtered (if needed)
+      bam           should be aligned and filtered to mask repetitive elements and such (if needed)
       k             tile size to correct (5 is recommended most of the time)
       outdir        directory to put all output files
       prefix        prepended to all intermediate and output files
